@@ -246,20 +246,25 @@ func main() {
 		go tailFile(ctx, cancel, string_template_eval(logFile), logPollFlag, os.Stderr)
 	}
 
+	exitCode = -1
+
 	// Process -start and -run flags
 	for _, cmd := range commands.run {
+		if exitCode == -1 || exitCode == 0 {
+			if verboseFlag {
+				log.Printf("Pre-Running: `%s`\n", toString(cmd))
+			}
+			wg.Add(1)
+			exitCode = runCmd(ctx, func() {
+				log.Printf("Secondary Command `%s` stopped\n", toString(cmd))
+				cancel()
+			}, cmd)
+		}
+	}
 
-		if verboseFlag {
-			log.Printf("Pre-Running: `%s`\n", toString(cmd))
-		}
-		wg.Add(1)
-		exitCode = runCmd(ctx, func() {
-			log.Printf("Secondary Command `%s` stopped\n", toString(cmd))
-			cancel()
-		}, cmd)
-		if exitCode > 0 {
-			os.Exit(exitCode)
-		}
+	// flag was never set by --run, reset back to 0
+	if exitCode == -1 {
+		exitCode = 0
 	}
 
 	for _, cmd := range commands.start {
@@ -277,7 +282,7 @@ func main() {
 		}, cmd)
 	}
 
-	if flag.NArg() > 0 {
+	if flag.NArg() > 0  && exitCode == 0{
 
 		// perform template substitution on primary cmd
 		//for i, arg := range flag.Args() {
